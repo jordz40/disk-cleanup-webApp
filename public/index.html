@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>File Checker — Pemeriksa Disk</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="12" cy="6" rx="8" ry="3"></ellipse>
+          <path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"></path>
+          <path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"></path>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <h1>File Checker</h1>
+        <p>Pemeriksa penyimpanan lokal</p>
+      </div>
+    </div>
+
+    <div class="drive" id="driveInfo">
+      <div class="drive-top">
+        <span class="drive-label" id="driveLabel">Membaca disk…</span>
+        <span class="drive-free" id="driveFree"></span>
+      </div>
+      <div class="drive-bar" role="img" aria-label="Pemakaian disk" id="driveBar">
+        <div class="drive-fill" id="driveFill"></div>
+      </div>
+    </div>
+  </header>
+
+  <section class="toolbar" aria-label="Pengaturan pemindaian">
+    <div class="field field-path">
+      <label for="rootPath">Folder yang dipindai</label>
+      <input id="rootPath" value="C:\" spellcheck="false" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label for="minSize">Ukuran minimum</label>
+      <select id="minSize">
+        <option value="0">Semua file</option>
+        <option value="1">1 MB</option>
+        <option value="10" selected>10 MB</option>
+        <option value="50">50 MB</option>
+        <option value="100">100 MB</option>
+        <option value="500">500 MB</option>
+      </select>
+    </div>
+
+    <label class="switch">
+      <input type="checkbox" id="includeSystem">
+      <span>Sertakan folder sistem</span>
+    </label>
+
+    <div class="toolbar-actions">
+      <button id="scanBtn" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m20 20-3.5-3.5"></path>
+        </svg>
+        Pindai
+      </button>
+      <button id="cancelBtn" class="btn" hidden>Batalkan</button>
+    </div>
+  </section>
+
+  <div class="progress" id="progress" hidden>
+    <span class="spinner" aria-hidden="true"></span>
+    <div class="progress-text">
+      <strong id="progressTitle">Memindai folder…</strong>
+      <span id="progressDetail">Menyiapkan</span>
+    </div>
+    <span class="progress-elapsed" id="progressElapsed">0:00</span>
+  </div>
+
+  <main>
+    <section class="stats" aria-label="Ringkasan pemindaian">
+      <article class="stat">
+        <span class="stat-label">File dipindai</span>
+        <strong class="stat-value" id="statScanned">—</strong>
+        <span class="stat-sub" id="statScannedSub">Belum ada pemindaian</span>
+      </article>
+      <article class="stat">
+        <span class="stat-label">Kandidat besar</span>
+        <strong class="stat-value" id="statCandidates">—</strong>
+        <span class="stat-sub" id="statCandidatesSub">Ukuran minimum 10 MB</span>
+      </article>
+      <article class="stat stat-suggest">
+        <span class="stat-label">Saran dibersihkan</span>
+        <strong class="stat-value" id="statSuggested">—</strong>
+        <span class="stat-sub" id="statSuggestedSub">Cache, log, dump, dependency</span>
+      </article>
+      <article class="stat stat-selected">
+        <span class="stat-label">Terpilih</span>
+        <strong class="stat-value" id="statSelected">0 B</strong>
+        <span class="stat-sub" id="statSelectedSub">Belum ada file dipilih</span>
+      </article>
+    </section>
+
+    <div class="tabs" role="tablist" aria-label="Tampilan hasil">
+      <button class="tab" role="tab" data-view="files" aria-selected="true" id="tabFiles">File terbesar</button>
+      <button class="tab" role="tab" data-view="dirs" aria-selected="false" id="tabDirs">Folder terbesar</button>
+      <button class="tab" role="tab" data-view="apps" aria-selected="false" id="tabApps">Aplikasi terinstal</button>
+      <span class="tabs-spacer"></span>
+      <span class="result-count" id="resultCount"></span>
+    </div>
+
+    <div class="filters">
+      <div class="search">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m20 20-3.5-3.5"></path>
+        </svg>
+        <input id="searchInput" type="search" placeholder="Cari nama atau lokasi file" aria-label="Cari file">
+      </div>
+
+      <select id="categoryFilter" aria-label="Filter kategori">
+        <option value="all">Semua kategori</option>
+      </select>
+
+      <select id="levelFilter" aria-label="Filter status">
+        <option value="all">Semua status</option>
+        <option value="removable">Bisa dihapus</option>
+        <option value="suggested">Saran hapus</option>
+        <option value="caution">Hati-hati</option>
+        <option value="protected">Dilindungi (abu-abu)</option>
+      </select>
+
+      <button id="refreshApps" class="btn btn-ghost filters-right" hidden>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20 11a8 8 0 1 0-2.3 5.7"></path>
+          <path d="M20 4v7h-7"></path>
+        </svg>
+        Muat ulang
+      </button>
+    </div>
+
+    <section class="table-panel" aria-label="Daftar file">
+      <table class="data-table" id="fileTable">
+        <colgroup>
+          <col class="col-check">
+          <col class="col-name">
+          <col class="col-cat">
+          <col class="col-size">
+          <col class="col-date">
+          <col class="col-status">
+          <col class="col-action">
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="cell-check"><input type="checkbox" id="selectAll" aria-label="Pilih semua file yang bisa dihapus"></th>
+            <th><button class="sort-btn" data-sort="name">Nama file</button></th>
+            <th><button class="sort-btn" data-sort="category">Kategori</button></th>
+            <th class="cell-size"><button class="sort-btn" data-sort="size">Ukuran</button></th>
+            <th class="cell-date"><button class="sort-btn" data-sort="mtime">Diubah</button></th>
+            <th><span class="th-label">Status</span></th>
+            <th class="cell-action"><span class="sr-only">Aksi</span></th>
+          </tr>
+        </thead>
+        <tbody id="fileBody"></tbody>
+      </table>
+
+      <table class="data-table" id="dirTable" hidden>
+        <colgroup>
+          <col class="col-name">
+          <col class="col-cat">
+          <col class="col-size">
+          <col class="col-status">
+          <col class="col-action">
+        </colgroup>
+        <thead>
+          <tr>
+            <th><span class="th-label">Folder</span></th>
+            <th><span class="th-label">Kategori</span></th>
+            <th class="cell-size"><span class="th-label">Total ukuran</span></th>
+            <th><span class="th-label">Status</span></th>
+            <th class="cell-action"><span class="sr-only">Aksi</span></th>
+          </tr>
+        </thead>
+        <tbody id="dirBody"></tbody>
+      </table>
+
+      <table class="data-table" id="appTable" hidden>
+        <colgroup>
+          <col class="col-name">
+          <col class="col-size">
+          <col class="col-date">
+          <col class="col-action-app">
+        </colgroup>
+        <thead>
+          <tr>
+            <th><button class="sort-btn" data-app-sort="name">Aplikasi</button></th>
+            <th class="cell-size"><button class="sort-btn" data-app-sort="size">Ukuran</button></th>
+            <th class="cell-date"><button class="sort-btn" data-app-sort="date">Terpasang</button></th>
+            <th class="cell-action"><span class="sr-only">Aksi</span></th>
+          </tr>
+        </thead>
+        <tbody id="appBody"></tbody>
+      </table>
+
+      <div class="empty" id="emptyState">
+        <span class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          </svg>
+        </span>
+        <h2 id="emptyTitle">Belum ada hasil</h2>
+        <p id="emptyText">Tekan <strong>Pindai</strong> untuk mencari file terbesar di disk C. Hasil bisa diurutkan, difilter, lalu kamu checklist sendiri file yang mau dihapus.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="actionbar">
+    <div class="selection">
+      <strong id="selectionSize">0 B</strong>
+      <span id="selectionCount">Belum ada file dipilih</span>
+    </div>
+
+    <div class="legend" aria-label="Keterangan warna">
+      <span class="legend-item"><i class="dot dot-protected"></i>Abu-abu: tidak bisa dihapus</span>
+      <span class="legend-item"><i class="dot dot-caution"></i>Kuning: hati-hati</span>
+      <span class="legend-item"><i class="dot dot-suggest"></i>Hijau: saran hapus</span>
+    </div>
+
+    <div class="actionbar-right">
+      <span class="hint" id="deleteHint">Default: pindah ke Recycle Bin</span>
+      <span class="hint" id="appsHint" hidden>Klik Uninstall pada aplikasi yang ingin dihapus</span>
+      <button id="deleteBtn" class="btn btn-danger" disabled>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 7h16"></path>
+          <path d="M10 11v6M14 11v6"></path>
+          <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"></path>
+          <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
+        </svg>
+        Hapus terpilih
+      </button>
+    </div>
+  </footer>
+
+  <dialog id="confirmDialog" class="dialog" aria-labelledby="dialogTitle">
+    <div class="dialog-head">
+      <h2 id="dialogTitle">Hapus file terpilih?</h2>
+      <p id="dialogSubtitle"></p>
+    </div>
+
+    <div class="dialog-body">
+      <div class="dialog-summary" id="dialogSummary"></div>
+
+      <fieldset class="radio-group" id="modeFieldset">
+        <legend>Metode penghapusan</legend>
+        <label class="radio">
+          <input type="radio" name="deleteMode" value="recycle" checked>
+          <span>
+            <strong>Pindah ke Recycle Bin</strong>
+            <em>Masih bisa dipulihkan. Ruang baru benar-benar kosong setelah Recycle Bin dikosongkan.</em>
+          </span>
+        </label>
+        <label class="radio">
+          <input type="radio" name="deleteMode" value="permanent">
+          <span>
+            <strong>Hapus permanen</strong>
+            <em>Ruang langsung terbebas, tapi file tidak bisa dikembalikan.</em>
+          </span>
+        </label>
+      </fieldset>
+
+      <p class="dialog-note" id="dialogNote"></p>
+      <div class="dialog-results" id="dialogResults" hidden></div>
+    </div>
+
+    <div class="dialog-actions">
+      <button class="btn" id="cancelDelete" type="button">Batal</button>
+      <button class="btn btn-danger" id="confirmDelete" type="button">Hapus</button>
+    </div>
+  </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
